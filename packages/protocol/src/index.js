@@ -5,5 +5,12 @@ export { SYSTEM_CONTRACTS, listContractTemplates } from './contracts/templates.j
 export { deriveAddress, serializeTransaction } from './crypto.js';
 export { AfroChainDatabase, createDatabase } from './database.js';
 export { syncNodeWithPeers } from './peer-sync.js';
-export { loadSnapshotFile, saveSnapshotFile } from './persistence.js';
+export {
+  buildSnapshotManifest,
+  finalizeSnapshot,
+  loadSnapshotFile,
+  resolveSnapshotWritePath,
+  saveSnapshotFile,
+  verifySnapshotEnvelope
+} from './persistence.js';
 export { AFC_DECIMALS, AFC_SYMBOL, AFC_UNIT, formatUnits } from './utils.js';

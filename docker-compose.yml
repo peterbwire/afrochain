@@ -1,0 +1,103 @@
+services:
+  afrochain-node:
+    build:
+      context: .
+      dockerfile: deploy/protocol.Dockerfile
+    container_name: afrochain-node
+    environment:
+      AFC_AUTOBLOCK_MS: 15000
+      AFC_CHAIN_ID: afrochain-1
+      AFC_DB_PATH: /app/data/node-state.sqlite
+      AFC_NETWORK: devnet
+      AFC_NODE_LABEL: AfroChain Docker Node
+      AFC_OPERATOR_TOKEN: dev-operator-token
+      AFC_PEER_TOKEN: dev-peer-token
+      AFC_PUBLIC_URL: http://localhost:4100
+      AFC_REGION: Pan-Africa
+      AFC_SNAPSHOT_ALLOWED_ROOTS: /app/data,/app/snapshots
+      AFC_SNAPSHOT_PATH: /app/data/node-snapshot.json
+      AFC_SNAPSHOT_SIGNING_SECRET: dev-snapshot-secret
+      PORT: 4100
+    ports:
+      - "4100:4100"
+    volumes:
+      - afrochain-node-data:/app/data
+      - afrochain-node-snapshots:/app/snapshots
+
+  afrochain-validator:
+    build:
+      context: .
+      dockerfile: deploy/validator.Dockerfile
+    container_name: afrochain-validator
+    depends_on:
+      - afrochain-node
+    environment:
+      AFC_AUTOBLOCK_MS: 15000
+      AFC_CHAIN_ID: afrochain-1
+      AFC_DB_PATH: /app/data/validator-state.sqlite
+      AFC_NETWORK: devnet
+      AFC_NODE_LABEL: AfroChain Docker Validator
+      AFC_OPERATOR_TOKEN: dev-operator-token
+      AFC_PEERS: http://afrochain-node:4100
+      AFC_PEER_TOKEN: dev-peer-token
+      AFC_PUBLIC_URL: http://localhost:4200
+      AFC_REGION: Kenya
+      AFC_SNAPSHOT_ALLOWED_ROOTS: /app/data,/app/snapshots
+      AFC_SNAPSHOT_PATH: /app/data/validator-snapshot.json
+      AFC_SNAPSHOT_SIGNING_SECRET: dev-snapshot-secret
+      AFC_VALIDATOR_ADDRESS: afc_validator_nairobi
+      PORT: 4200
+    ports:
+      - "4200:4200"
+    volumes:
+      - afrochain-validator-data:/app/data
+      - afrochain-validator-snapshots:/app/snapshots
+
+  afrochain-explorer:
+    build:
+      args:
+        APP_DIR: apps/explorer
+        APP_WORKSPACE: "@afrochain/explorer"
+        VITE_AFROCHAIN_API: http://localhost:4100
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    container_name: afrochain-explorer
+    depends_on:
+      - afrochain-node
+    ports:
+      - "8081:80"
+
+  afrochain-dashboard:
+    build:
+      args:
+        APP_DIR: apps/dashboard
+        APP_WORKSPACE: "@afrochain/dashboard"
+        VITE_AFROCHAIN_API: http://localhost:4100
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    container_name: afrochain-dashboard
+    depends_on:
+      - afrochain-node
+    ports:
+      - "8082:80"
+
+  afrochain-wallet:
+    build:
+      args:
+        APP_DIR: apps/wallet
+        APP_WORKSPACE: "@afrochain/wallet"
+        VITE_AFROCHAIN_API: http://localhost:4100
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    container_name: afrochain-wallet
+    depends_on:
+      - afrochain-node
+    ports:
+      - "8083:80"
+
+volumes:
+  afrochain-node-data:
+  afrochain-node-snapshots:
+  afrochain-validator-data:
+  afrochain-validator-snapshots:
+

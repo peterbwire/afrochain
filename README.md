@@ -22,6 +22,7 @@ This repository is intentionally organized as a monorepo today so the protocol, 
 - a React ecosystem dashboard
 - Solidity token artifacts for future EVM-style integrations
 - ACP governance-process scaffolding
+- GitHub Actions CI plus first-pass Docker deployment scaffolding
 
 ## Repository Layout
 
@@ -171,11 +172,17 @@ Important environment variables:
 - `AFC_PEERS`
 - `AFC_OPERATOR_TOKEN`
 - `AFC_PEER_TOKEN`
+- `AFC_ALLOW_PRIVATE_PEERS`
 - `AFC_AUTOBLOCK_MS`
 - `AFC_SYNC_MS`
 - `AFC_SYNC_MEMPOOL_LIMIT`
+- `AFC_PEER_DISCOVERY_LIMIT`
+- `AFC_PEER_REQUEST_RETRIES`
+- `AFC_PEER_REQUEST_TIMEOUT_MS`
 - `AFC_DB_PATH`
 - `AFC_SNAPSHOT_PATH`
+- `AFC_SNAPSHOT_ALLOWED_ROOTS`
+- `AFC_SNAPSHOT_SIGNING_SECRET`
 - `AFC_NODE_LABEL`
 - `AFC_REGION`
 - `AFC_PUBLIC_URL`
@@ -188,6 +195,9 @@ Security note:
 - peer relay routes such as `/sync/transactions`, `/sync/blocks`, and `/sync/peers` now require `AFC_PEER_TOKEN`
 - if `AFC_PEER_TOKEN` is not set, the node falls back to `AFC_TRANSPORT_SHARED_SECRET` when available
 - if either token is missing, the corresponding protected route group is disabled instead of remaining anonymously writable
+- snapshots now include an integrity manifest and can be signature-protected with `AFC_SNAPSHOT_SIGNING_SECRET`
+- snapshot writes are limited to configured roots so operators cannot save snapshots outside approved directories
+- peer policies can now block private peers and bound sync retry / timeout behavior
 
 Operational guidance lives in [docs/operator-runbook.md](/c:/Users/Stee_Vin/Desktop/mp/afrochain/docs/operator-runbook.md).
 
@@ -244,6 +254,21 @@ AFC_OPERATOR_TOKEN=dev-operator-token npm run cli -- snapshot:import --file snap
 ```
 
 CLI details live in [packages/cli/README.md](/c:/Users/Stee_Vin/Desktop/mp/afrochain/packages/cli/README.md).
+
+## Deployment and CI
+
+AfroChain now includes:
+
+- GitHub Actions CI in [.github/workflows/ci.yml](/c:/Users/Stee_Vin/Desktop/mp/afrochain/.github/workflows/ci.yml)
+- contribution and security policy docs in [CONTRIBUTING.md](/c:/Users/Stee_Vin/Desktop/mp/afrochain/CONTRIBUTING.md) and [SECURITY.md](/c:/Users/Stee_Vin/Desktop/mp/afrochain/SECURITY.md)
+- first-pass container and compose manifests in [docker-compose.yml](/c:/Users/Stee_Vin/Desktop/mp/afrochain/docker-compose.yml) and [docs/deployment.md](/c:/Users/Stee_Vin/Desktop/mp/afrochain/docs/deployment.md)
+
+Quick local deployment helpers:
+
+```bash
+npm run docker:up
+npm run docker:down
+```
 
 ## SDK Surface
 

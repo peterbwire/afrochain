@@ -10,7 +10,7 @@ The AfroChain node API is the integration surface for:
 - the dashboard
 - trusted peer sync flows
 
-The API is JSON-only and currently exposes open CORS headers for local development.
+The API is JSON-only and currently exposes open CORS headers for local development. Privileged mutation routes now require operator or peer tokens.
 
 ## Conventions
 
@@ -311,6 +311,10 @@ Returns:
 ### `POST /network/sync`
 
 Triggers manual peer sync.
+
+Auth:
+
+- requires `x-afrochain-operator-token`
 
 Body:
 
@@ -776,9 +780,22 @@ Returns:
 
 Returns the full current snapshot object.
 
+Auth:
+
+- requires `x-afrochain-operator-token`
+
 ### `POST /snapshots/save`
 
 Saves a snapshot to disk.
+
+Auth:
+
+- requires `x-afrochain-operator-token`
+
+Behavior:
+
+- only paths inside the node's allowed snapshot roots are accepted
+- saved snapshots include an integrity manifest and optional signature
 
 Body:
 
@@ -799,6 +816,18 @@ Returns:
 ### `POST /snapshots/import`
 
 Imports a snapshot object directly into the node.
+
+Auth:
+
+- requires `x-afrochain-operator-token`
+
+Validation:
+
+- manifest integrity
+- optional signature verification
+- block-hash and previous-hash continuity
+- tip state-root verification
+- chain ID and network compatibility
 
 Returns:
 

@@ -1,5 +1,9 @@
 import { nowIso } from './utils.js';
 
+const DEFAULT_SYNC_FETCH_TIMEOUT_MS = 4_000;
+const DEFAULT_SYNC_FETCH_RETRIES = 2;
+const DEFAULT_SYNC_RETRY_BACKOFF_MS = 200;
+
 async function readJsonResponse(response, peerUrl, route) {
   if (!response.ok) {
     throw new Error(`Peer ${peerUrl} returned ${response.status} for ${route}.`);
@@ -8,9 +12,46 @@ async function readJsonResponse(response, peerUrl, route) {
   return response.json();
 }
 
-async function fetchPeerJson(peerUrl, route) {
-  const response = await fetch(`${peerUrl}${route}`);
-  return readJsonResponse(response, peerUrl, route);
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchPeerJson(node, peerUrl, route, options = {}) {
+  const normalizedPeerUrl = node.assertPeerUrlAllowed(peerUrl, {
+    allowPrivate: options.allowPrivate,
+    transport: 'http'
+  });
+  const retries = Math.max(0, Number(options.retries ?? node.peerRequestRetries ?? DEFAULT_SYNC_FETCH_RETRIES));
+  const timeoutMs = Math.max(
+    500,
+    Number(options.timeoutMs ?? node.peerRequestTimeoutMs ?? DEFAULT_SYNC_FETCH_TIMEOUT_MS)
+  );
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(`${normalizedPeerUrl}${route}`, {
+        signal: controller.signal
+      });
+      return await readJsonResponse(response, normalizedPeerUrl, route);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) {
+        break;
+      }
+
+      await delay(DEFAULT_SYNC_RETRY_BACKOFF_MS * (attempt + 1));
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw new Error(
+    `Peer ${normalizedPeerUrl} failed ${route} after ${retries + 1} attempt(s): ${lastError?.message || 'Unknown error.'}`
+  );
 }
 
 export async function syncNodeWithPeers(node, options = {}) {
@@ -46,7 +87,7 @@ export async function syncNodeWithPeers(node, options = {}) {
     };
 
     try {
-      const health = await fetchPeerJson(peer.url, '/health');
+      const health = await fetchPeerJson(node, peer.url, '/health', options);
       const remoteChainId = health.chainId || null;
       const remoteNetwork = health.network || null;
 
@@ -66,13 +107,15 @@ export async function syncNodeWithPeers(node, options = {}) {
       peerSummary.remoteHeight = Number(health.height || 0);
       peerSummary.remoteTipHash = health.tipHash || null;
 
-      const peerDirectory = await fetchPeerJson(peer.url, '/peers');
-      for (const discoveredPeer of peerDirectory) {
+      const peerDirectory = await fetchPeerJson(node, peer.url, '/peers', options);
+      for (const discoveredPeer of (peerDirectory || []).slice(0, Number(options.peerDiscoveryLimit || node.peerDiscoveryLimit))) {
         if (!discoveredPeer?.url || discoveredPeer.url === peer.url) {
           continue;
         }
 
-        const added = node.addPeer(discoveredPeer);
+        const added = node.addPeer(discoveredPeer, {
+          persist: false
+        });
         if (added) {
           peerSummary.discoveredPeers += 1;
           summary.discoveredPeerCount += 1;
@@ -82,7 +125,7 @@ export async function syncNodeWithPeers(node, options = {}) {
       const currentHeight = node.getTip().height;
       if (peerSummary.remoteHeight > currentHeight) {
         for (let height = currentHeight + 1; height <= peerSummary.remoteHeight; height += 1) {
-          const block = await fetchPeerJson(peer.url, `/blocks/${height}`);
+          const block = await fetchPeerJson(node, peer.url, `/blocks/${height}`, options);
 
           if (!block?.hash) {
             throw new Error(`Peer ${peer.url} did not return a valid block at height ${height}.`);
@@ -103,7 +146,7 @@ export async function syncNodeWithPeers(node, options = {}) {
 
       const mempoolLimit = Number(options.mempoolLimit || 25);
       if (mempoolLimit > 0) {
-        const remoteMempool = await fetchPeerJson(peer.url, `/mempool?limit=${mempoolLimit}`);
+        const remoteMempool = await fetchPeerJson(node, peer.url, `/mempool?limit=${mempoolLimit}`, options);
         for (const transaction of remoteMempool.transactions || []) {
           if (node.hasTransaction(transaction.id)) {
             continue;

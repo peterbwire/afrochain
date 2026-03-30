@@ -44,8 +44,36 @@ Environment variables used by the runtime entrypoints:
   Enables authenticated HTTP peer relay.
 - `AFC_TRANSPORT_SHARED_SECRET`
   Used by the socket transport and also acts as the default `AFC_PEER_TOKEN` fallback when no explicit peer token is provided.
+- `AFC_SNAPSHOT_SIGNING_SECRET`
+  Signs snapshot manifests and can require signed snapshot imports.
+- `AFC_SNAPSHOT_ALLOWED_ROOTS`
+  Comma-separated allowlist of directories where snapshot files may be written.
+- `AFC_ALLOW_PRIVATE_PEERS`
+  Allows or blocks private / loopback HTTP peer URLs.
+- `AFC_PEER_REQUEST_TIMEOUT_MS`
+  Timeout budget for probe, relay, and sync HTTP requests.
+- `AFC_PEER_REQUEST_RETRIES`
+  Retry count for sync fetches.
+- `AFC_PEER_DISCOVERY_LIMIT`
+  Maximum number of peers accepted from a remote peer directory during sync.
 
 This keeps public reads easy to consume while blocking anonymous mutation of node state and relay traffic.
+
+## Snapshot Integrity
+
+Snapshots now include:
+
+- a manifest with chain ID, network, height, tip hash, state root, and snapshot hash
+- an optional signature when `AFC_SNAPSHOT_SIGNING_SECRET` is configured
+
+Import validation now checks:
+
+- manifest integrity
+- optional signature validity
+- chain height continuity
+- block hash continuity
+- tip state-root consistency with the serialized state
+- chain ID and network compatibility with the configured node
 
 ## Package Exports
 
@@ -63,8 +91,12 @@ This keeps public reads easy to consume while blocking anonymous mutation of nod
 - `AfroChainDatabase`
 - `createDatabase`
 - `syncNodeWithPeers`
+- `buildSnapshotManifest`
+- `finalizeSnapshot`
 - `loadSnapshotFile`
+- `resolveSnapshotWritePath`
 - `saveSnapshotFile`
+- `verifySnapshotEnvelope`
 - `AFC_DECIMALS`
 - `AFC_SYMBOL`
 - `AFC_UNIT`

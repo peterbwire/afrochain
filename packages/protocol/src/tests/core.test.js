@@ -718,6 +718,94 @@ test('AfroChain uses one canonical timestamp for proposal finalization side effe
   assert.equal(proposal.grantDisbursements[0].executedAt, finalizationBlock.timestamp);
 });
 
+test('AfroChain enforces snapshot roots and rejects tampered signed snapshots', async () => {
+  const sandboxDir = await mkdtemp(join(tmpdir(), 'afrochain-signed-snapshot-'));
+  const allowedSnapshotDir = join(sandboxDir, 'snapshots');
+  const snapshotPath = join(allowedSnapshotDir, 'signed.json');
+  const node = await AfroChainNode.createFromDisk({
+    allowedSnapshotRoots: [allowedSnapshotDir],
+    snapshotPath,
+    snapshotSigningSecret: 'snapshot-test-secret'
+  });
+  const recipient = createTestWallet('Signed Snapshot Recipient');
+
+  try {
+    await node.requestFaucet(recipient.address, 125 * AFC_UNIT, {
+      label: recipient.label,
+      note: 'Signed snapshot bootstrap'
+    });
+    await node.saveSnapshot(snapshotPath);
+
+    await assert.rejects(
+      node.saveSnapshot(join(sandboxDir, 'outside.json')),
+      /allowed snapshot roots/
+    );
+
+    const tamperedSnapshot = node.createSnapshot();
+    tamperedSnapshot.state.balances[recipient.address] += 1;
+
+    assert.throws(
+      () => node.importSnapshot(tamperedSnapshot),
+      /manifest|signature|state root/i
+    );
+
+    const restoredNode = await AfroChainNode.createFromDisk({
+      allowedSnapshotRoots: [allowedSnapshotDir],
+      snapshotPath,
+      snapshotSigningSecret: 'snapshot-test-secret'
+    });
+
+    assert.equal(restoredNode.getAccount(recipient.address).balance, 125 * AFC_UNIT);
+  } finally {
+    node.database?.close();
+    await rm(sandboxDir, { force: true, recursive: true });
+  }
+});
+
+test('AfroChain rejects out-of-range governance parameter proposals', async () => {
+  const node = new AfroChainNode();
+  const validator = createTestWallet('Governance Bounds Validator');
+
+  node.state.balances[validator.address] = 600_000 * AFC_UNIT;
+  node.state.nonces[validator.address] = 0;
+
+  const registerValidatorTransaction = signTransaction(validator, {
+    nonce: 1,
+    payload: {
+      action: 'register_validator',
+      amount: 300_000 * AFC_UNIT,
+      commissionRate: 0.08,
+      endpoint: 'https://validator-bounds.afrochain.local',
+      name: 'Bounds Validator',
+      region: 'Kenya'
+    },
+    type: 'stake'
+  });
+
+  await node.submitTransaction(registerValidatorTransaction, { broadcast: false });
+  await node.produceBlock({ broadcast: false, force: true });
+
+  const invalidProposalTransaction = signTransaction(validator, {
+    nonce: 2,
+    payload: {
+      changes: [
+        {
+          parameter: 'quorumRate',
+          value: 1.5
+        }
+      ],
+      summary: 'This proposal should be rejected because the quorum rate is invalid.',
+      title: 'Break quorum'
+    },
+    type: 'proposal'
+  });
+
+  await assert.rejects(
+    node.submitTransaction(invalidProposalTransaction, { broadcast: false }),
+    /Quorum rate must be between/
+  );
+});
+
 test('AfroChain restores state from SQLite persistence', async () => {
   const sandboxDir = await mkdtemp(join(tmpdir(), 'afrochain-db-'));
   const databasePath = join(sandboxDir, 'state.sqlite');
@@ -743,6 +831,19 @@ test('AfroChain restores state from SQLite persistence', async () => {
   restoredNode.database?.close();
   node.database?.close();
   await rm(sandboxDir, { force: true, recursive: true });
+});
+
+test('AfroChain blocks private HTTP peers when the node policy forbids them', async () => {
+  const node = new AfroChainNode({
+    allowPrivatePeerAddresses: false,
+    network: 'mainnet'
+  });
+
+  assert.equal(node.addPeer('http://127.0.0.1:4100', { persist: false }), false);
+  await assert.rejects(
+    node.probePeer('http://127.0.0.1:4100'),
+    /private or loopback address/
+  );
 });
 
 test('AfroChain synchronizes follower nodes from peers', async () => {

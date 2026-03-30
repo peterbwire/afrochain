@@ -39,6 +39,8 @@ If you are new to the project, read these in order:
   Operational runbook for nodes and validators.
 - `dapp-cookbook.md`
   Integration examples using the SDK and API.
+- `deployment.md`
+  Container, compose, and CI deployment starting point.
 - `repo-split-plan.md`
   How the monorepo is being maintained for future extraction into an organization.
 

@@ -101,8 +101,14 @@ These variables are used by the startup scripts in `packages/protocol/src/bin`.
   Public base URL for peer registration and discovery.
 - `AFC_PEERS`
   Comma-separated peer URLs.
+- `AFC_ALLOW_PRIVATE_PEERS`
+  Controls whether private or loopback peers are accepted.
 - `AFC_SNAPSHOT_PATH`
   Snapshot file path.
+- `AFC_SNAPSHOT_ALLOWED_ROOTS`
+  Comma-separated directories allowed for snapshot writes.
+- `AFC_SNAPSHOT_SIGNING_SECRET`
+  Signs snapshot manifests and can require signed snapshot imports.
 - `AFC_DB_PATH`
   SQLite database path.
 - `AFC_AUTOBLOCK_MS`
@@ -111,6 +117,12 @@ These variables are used by the startup scripts in `packages/protocol/src/bin`.
   Sync loop interval in milliseconds.
 - `AFC_SYNC_MEMPOOL_LIMIT`
   Number of remote mempool transactions to inspect during each sync.
+- `AFC_PEER_DISCOVERY_LIMIT`
+  Maximum number of discovered peers to accept during sync.
+- `AFC_PEER_REQUEST_RETRIES`
+  Retry count for sync fetches.
+- `AFC_PEER_REQUEST_TIMEOUT_MS`
+  Timeout budget for peer probe, relay, and sync requests.
 
 ### Validator-specific variable
 
@@ -238,10 +250,12 @@ npm run snapshot:export
 ### Export via API
 
 - `GET /snapshots/export`
+  Requires operator auth.
 
 ### Save current in-memory state to a specific path
 
 - `POST /snapshots/save`
+  Requires operator auth and only writes inside allowed snapshot roots.
 
 Body:
 
@@ -254,6 +268,7 @@ Body:
 ### Import a snapshot
 
 - `POST /snapshots/import`
+  Requires operator auth and validates manifest integrity, optional signature, chain links, and state-root compatibility.
 
 Body:
 
@@ -269,9 +284,9 @@ Body:
 ### CLI wrappers
 
 ```bash
-npm run cli -- snapshot:save --path snapshots/devnet.json
-npm run cli -- snapshot:export --out snapshots/exported.json
-npm run cli -- snapshot:import --file snapshots/devnet.json
+AFC_OPERATOR_TOKEN=dev-operator-token npm run cli -- snapshot:save --path snapshots/devnet.json
+AFC_OPERATOR_TOKEN=dev-operator-token npm run cli -- snapshot:export --out snapshots/exported.json
+AFC_OPERATOR_TOKEN=dev-operator-token npm run cli -- snapshot:import --file snapshots/devnet.json
 ```
 
 ## Manual Sync Operations

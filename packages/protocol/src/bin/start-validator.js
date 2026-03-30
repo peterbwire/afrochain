@@ -14,6 +14,15 @@ const socketPublicUrl = process.env.AFC_SOCKET_PUBLIC_URL || null;
 const transportSharedSecret = process.env.AFC_TRANSPORT_SHARED_SECRET || null;
 const operatorToken = process.env.AFC_OPERATOR_TOKEN || null;
 const peerToken = process.env.AFC_PEER_TOKEN || transportSharedSecret || null;
+const snapshotSigningSecret = process.env.AFC_SNAPSHOT_SIGNING_SECRET || null;
+const allowedSnapshotRoots = process.env.AFC_SNAPSHOT_ALLOWED_ROOTS
+  ? process.env.AFC_SNAPSHOT_ALLOWED_ROOTS.split(',').filter(Boolean)
+  : [];
+const allowPrivatePeerAddresses =
+  process.env.AFC_ALLOW_PRIVATE_PEERS === undefined ? undefined : process.env.AFC_ALLOW_PRIVATE_PEERS;
+const peerRequestRetries = Number(process.env.AFC_PEER_REQUEST_RETRIES || 2);
+const peerRequestTimeoutMs = Number(process.env.AFC_PEER_REQUEST_TIMEOUT_MS || 4000);
+const peerDiscoveryLimit = Number(process.env.AFC_PEER_DISCOVERY_LIMIT || 25);
 const validatorAddress = process.env.AFC_VALIDATOR_ADDRESS || 'afc_validator_nairobi';
 const autoBlockMs = Number(process.env.AFC_AUTOBLOCK_MS || 15000);
 const syncMs = Number(process.env.AFC_SYNC_MS || 10000);
@@ -30,11 +39,17 @@ const node = await AfroChainNode.createFromDisk({
   databasePath,
   label: process.env.AFC_NODE_LABEL || `Validator ${validatorAddress.slice(-6)}`,
   network: process.env.AFC_NETWORK || 'devnet',
+  allowedSnapshotRoots,
+  allowPrivatePeerAddresses,
   operatorToken,
   peers,
+  peerDiscoveryLimit,
   peerToken,
+  peerRequestRetries,
+  peerRequestTimeoutMs,
   publicUrl: process.env.AFC_PUBLIC_URL || null,
   region: process.env.AFC_REGION || 'Pan-Africa',
+  snapshotSigningSecret,
   socketPublicUrl,
   snapshotPath,
   validatorAddress
@@ -49,6 +64,8 @@ console.log(`Snapshot path: ${snapshotPath}`);
 console.log(`Database path: ${databasePath}`);
 console.log(`Operator API: ${operatorToken ? 'token protected' : 'disabled (set AFC_OPERATOR_TOKEN to enable)'}`);
 console.log(`Peer relay API: ${peerToken ? 'token protected' : 'disabled (set AFC_PEER_TOKEN to enable)'}`);
+console.log(`Snapshot signing: ${snapshotSigningSecret ? 'enabled' : 'disabled'}`);
+console.log(`Private peer addresses: ${node.allowPrivatePeerAddresses ? 'allowed' : 'blocked'}`);
 
 if (socketPort > 0) {
   const transport = await createSocketTransport(node, {

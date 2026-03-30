@@ -1,3 +1,6 @@
+import { isIP } from 'node:net';
+import { dirname, resolve } from 'node:path';
+
 import {
   createContractInstance,
   estimateContractCallGas,
@@ -12,7 +15,7 @@ import { createDatabase } from './database.js';
 import { createGenesisState } from './genesis.js';
 import { createProposal, finalizeProposals, processTreasuryGrantVesting, voteOnProposal } from './governance.js';
 import { syncNodeWithPeers } from './peer-sync.js';
-import { loadSnapshotFile, saveSnapshotFile } from './persistence.js';
+import { finalizeSnapshot, loadSnapshotFile, saveSnapshotFile, verifySnapshotEnvelope } from './persistence.js';
 import {
   applyStakeTransaction,
   distributeBlockRewards,
@@ -122,9 +125,106 @@ const DEFAULT_TRANSACTION_GOSSIP_FANOUT = 3;
 const PEER_QUARANTINE_FAILURE_STREAK = 3;
 const PEER_QUARANTINE_SCORE = -20;
 const DEFAULT_PEER_PROBE_TIMEOUT_MS = 2_500;
+const DEFAULT_PEER_REQUEST_TIMEOUT_MS = 4_000;
+const DEFAULT_PEER_REQUEST_RETRIES = 2;
+const DEFAULT_PEER_DISCOVERY_LIMIT = 25;
+const ZERO_HASH = '0'.repeat(64);
 
 function clampPeerScore(score) {
   return Math.max(-100, Math.min(100, Math.round(Number(score || 0))));
+}
+
+function uniqueValues(values = []) {
+  return [...new Set((values || []).filter(Boolean))];
+}
+
+function parseBooleanOption(value, fallback = false) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+}
+
+function buildDefaultSnapshotRoots(snapshotPath = null) {
+  return uniqueValues([
+    snapshotPath ? dirname(resolve(snapshotPath)) : null,
+    resolve(process.cwd(), 'data'),
+    resolve(process.cwd(), 'snapshots')
+  ]);
+}
+
+function isPrivatePeerHostname(hostname) {
+  if (!hostname) {
+    return true;
+  }
+
+  const normalizedHostname = hostname.toLowerCase();
+  if (normalizedHostname === 'localhost' || normalizedHostname.endsWith('.local')) {
+    return true;
+  }
+
+  const ipVersion = isIP(normalizedHostname);
+  if (ipVersion === 4) {
+    if (
+      normalizedHostname.startsWith('10.') ||
+      normalizedHostname.startsWith('127.') ||
+      normalizedHostname.startsWith('192.168.')
+    ) {
+      return true;
+    }
+
+    const octets = normalizedHostname.split('.').map((octet) => Number(octet));
+    if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) {
+      return true;
+    }
+
+    if (octets[0] === 169 && octets[1] === 254) {
+      return true;
+    }
+  }
+
+  if (ipVersion === 6) {
+    return (
+      normalizedHostname === '::1' ||
+      normalizedHostname.startsWith('fc') ||
+      normalizedHostname.startsWith('fd') ||
+      normalizedHostname.startsWith('fe80:')
+    );
+  }
+
+  return false;
+}
+
+function normalizePeerUrl(peerUrl, transport) {
+  const protocolSet = transport === 'socket' ? new Set(['tcp:']) : new Set(['http:', 'https:']);
+  const url = new URL(peerUrl);
+
+  if (!protocolSet.has(url.protocol)) {
+    throw new Error(`Unsupported ${transport} peer protocol for ${peerUrl}.`);
+  }
+
+  if (url.username || url.password) {
+    throw new Error('Peer URLs must not include embedded credentials.');
+  }
+
+  if (url.pathname && url.pathname !== '/') {
+    throw new Error('Peer URLs must point at the root host, not a nested path.');
+  }
+
+  if (transport === 'socket') {
+    if (!url.port) {
+      throw new Error('Socket peer URLs must include an explicit port.');
+    }
+
+    return `tcp://${url.hostname}:${url.port}`;
+  }
+
+  return url.origin;
 }
 
 export class AfroChainNode {
@@ -146,8 +246,26 @@ export class AfroChainNode {
 
     this.database = options.database || null;
     this.databasePath = options.databasePath || this.database?.filePath || null;
+    this.configuredChainId = options.chainId || snapshot?.state?.chainId || null;
+    this.configuredNetwork = options.network || snapshot?.state?.network || null;
     this.operatorToken = options.operatorToken || null;
     this.peerToken = options.peerToken || null;
+    this.snapshotSigningSecret = options.snapshotSigningSecret || null;
+    this.requireSignedSnapshots = options.requireSignedSnapshots ?? Boolean(this.snapshotSigningSecret);
+    this.allowedSnapshotRoots = uniqueValues([
+      ...(options.allowedSnapshotRoots || []),
+      ...buildDefaultSnapshotRoots(options.snapshotPath || null)
+    ]);
+    this.allowPrivatePeerAddresses = parseBooleanOption(
+      options.allowPrivatePeerAddresses,
+      (options.network || snapshot?.state?.network || 'devnet') !== 'mainnet'
+    );
+    this.peerRequestTimeoutMs = Math.max(
+      500,
+      Number(options.peerRequestTimeoutMs || DEFAULT_PEER_REQUEST_TIMEOUT_MS)
+    );
+    this.peerRequestRetries = Math.max(0, Number(options.peerRequestRetries ?? DEFAULT_PEER_REQUEST_RETRIES));
+    this.peerDiscoveryLimit = Math.max(1, Number(options.peerDiscoveryLimit || DEFAULT_PEER_DISCOVERY_LIMIT));
     this.validatorAddress = options.validatorAddress || snapshot?.validatorAddress || null;
     this.snapshotPath = options.snapshotPath || null;
     this.autoPersist = options.autoPersist !== false;
@@ -188,6 +306,10 @@ export class AfroChainNode {
     for (const peer of options.peers || []) {
       this.addPeer(peer, { persist: false });
     }
+
+    if (snapshot) {
+      this.assertSnapshotIntegrity(snapshot);
+    }
   }
 
   createGenesisBlock() {
@@ -206,6 +328,19 @@ export class AfroChainNode {
 
   hashBlock(block) {
     return sha256Hex(stableStringify(toHashableBlock(block)));
+  }
+
+  assertPeerUrlAllowed(peerUrl, options = {}) {
+    const transport = options.transport || (/^tcp:\/\//i.test(peerUrl) ? 'socket' : 'http');
+    const normalizedUrl = normalizePeerUrl(peerUrl, transport);
+    const hostname = new URL(normalizedUrl).hostname;
+    const allowPrivate = options.allowPrivate ?? this.allowPrivatePeerAddresses;
+
+    if (!allowPrivate && isPrivatePeerHostname(hostname)) {
+      throw new Error(`Peer ${normalizedUrl} uses a private or loopback address that is not allowed by this node policy.`);
+    }
+
+    return normalizedUrl;
   }
 
   buildStateRoot(state) {
@@ -243,8 +378,72 @@ export class AfroChainNode {
     });
   }
 
-  createSnapshot() {
+  assertSnapshotIntegrity(snapshot) {
+    const requireManifest = Number(snapshot.snapshotVersion || 0) >= 5 || this.requireSignedSnapshots;
+    verifySnapshotEnvelope(snapshot, {
+      requireManifest,
+      requireSignature: this.requireSignedSnapshots,
+      signingSecret: this.snapshotSigningSecret
+    });
+
+    if (!snapshot?.state || !Array.isArray(snapshot.chain) || !snapshot.chain.length) {
+      throw new Error('Snapshot must include state and a non-empty chain.');
+    }
+
+    if (this.configuredChainId && snapshot.state.chainId !== this.configuredChainId) {
+      throw new Error(`Snapshot chainId ${snapshot.state.chainId} does not match node chainId ${this.configuredChainId}.`);
+    }
+
+    if (this.configuredNetwork && snapshot.state.network !== this.configuredNetwork) {
+      throw new Error(`Snapshot network ${snapshot.state.network} does not match node network ${this.configuredNetwork}.`);
+    }
+
+    const genesisBlock = snapshot.chain[0];
+    if (Number(genesisBlock.height) !== 0 || genesisBlock.previousHash !== ZERO_HASH) {
+      throw new Error('Snapshot genesis block is malformed.');
+    }
+
+    if (this.hashBlock(genesisBlock) !== genesisBlock.hash) {
+      throw new Error('Snapshot genesis block hash is invalid.');
+    }
+
+    for (let index = 1; index < snapshot.chain.length; index += 1) {
+      const previousBlock = snapshot.chain[index - 1];
+      const block = snapshot.chain[index];
+
+      if (Number(block.height) !== Number(previousBlock.height) + 1) {
+        throw new Error(`Snapshot block ${block.hash || index} does not continue the chain height sequence.`);
+      }
+
+      if (block.previousHash !== previousBlock.hash) {
+        throw new Error(`Snapshot block ${block.hash || index} does not link to the previous block hash.`);
+      }
+
+      if (this.hashBlock(block) !== block.hash) {
+        throw new Error(`Snapshot block ${block.height} failed hash validation.`);
+      }
+    }
+
+    const tip = snapshot.chain.at(-1);
+    if (Number(tip.height) !== snapshot.chain.length - 1) {
+      throw new Error('Snapshot tip height does not match the chain length.');
+    }
+
+    const computedStateRoot = this.buildStateRoot(snapshot.state);
+    if (tip.stateRoot !== computedStateRoot) {
+      throw new Error('Snapshot tip state root does not match the computed state root.');
+    }
+
     return {
+      chainId: snapshot.state.chainId,
+      height: tip.height,
+      network: snapshot.state.network,
+      tipHash: tip.hash
+    };
+  }
+
+  createSnapshot() {
+    return finalizeSnapshot({
       chain: deepClone(this.chain),
       databasePath: this.databasePath,
       exportedAt: nowIso(),
@@ -255,10 +454,12 @@ export class AfroChainNode {
         ...this.nodeMetadata
       },
       peers: this.getPeers(),
-      snapshotVersion: 4,
+      snapshotVersion: 5,
       state: deepClone(this.state),
       validatorAddress: this.validatorAddress
-    };
+    }, {
+      signingSecret: this.snapshotSigningSecret
+    });
   }
 
   async saveSnapshot(filePath = this.snapshotPath) {
@@ -266,7 +467,9 @@ export class AfroChainNode {
     const snapshot = this.createSnapshot();
 
     if (targetPath) {
-      await saveSnapshotFile(targetPath, snapshot);
+      await saveSnapshotFile(targetPath, snapshot, {
+        allowedRoots: this.allowedSnapshotRoots
+      });
     }
 
     if (this.database) {
@@ -286,9 +489,7 @@ export class AfroChainNode {
   }
 
   importSnapshot(snapshot) {
-    if (!snapshot?.state || !snapshot?.chain?.length) {
-      throw new Error('Snapshot must include state and chain data.');
-    }
+    this.assertSnapshotIntegrity(snapshot);
 
     this.state = deepClone(snapshot.state);
     this.chain = deepClone(snapshot.chain);
@@ -308,7 +509,9 @@ export class AfroChainNode {
     }
 
     if (this.autoPersist && this.snapshotPath) {
-      void saveSnapshotFile(this.snapshotPath, persistedSnapshot);
+      void saveSnapshotFile(this.snapshotPath, persistedSnapshot, {
+        allowedRoots: this.allowedSnapshotRoots
+      });
     }
 
     this.lastPersistedAt = persistedSnapshot.exportedAt;
@@ -326,10 +529,24 @@ export class AfroChainNode {
       return false;
     }
 
-    const existing = this.peerDirectory[peer.url] || null;
+    let normalizedPeerUrl;
+    try {
+      normalizedPeerUrl = this.assertPeerUrlAllowed(peer.url, {
+        allowPrivate: options.allowPrivate,
+        transport: peer.transport
+      });
+    } catch (error) {
+      if (options.throwOnInvalid) {
+        throw error;
+      }
+
+      return false;
+    }
+
+    const existing = this.peerDirectory[normalizedPeerUrl] || null;
     const added = !existing;
-    this.peers.add(peer.url);
-    this.peerDirectory[peer.url] = {
+    this.peers.add(normalizedPeerUrl);
+    this.peerDirectory[normalizedPeerUrl] = {
       addedAt: existing?.addedAt || nowIso(),
       compatibleChainId: existing?.compatibleChainId || null,
       compatibleNetwork: existing?.compatibleNetwork || null,
@@ -348,7 +565,7 @@ export class AfroChainNode {
       status: existing?.status || 'registered',
       successCount: Number(existing?.successCount || 0),
       transport: peer.transport ?? existing?.transport ?? 'http',
-      url: peer.url
+      url: normalizedPeerUrl
     };
 
     if (options.persist !== false) {
@@ -528,30 +745,35 @@ export class AfroChainNode {
       throw new Error('Peer URL is required for probing.');
     }
 
+    const normalizedPeerUrl = this.assertPeerUrlAllowed(peerUrl, {
+      allowPrivate: options.allowPrivate,
+      transport: options.transport || 'http'
+    });
+
     const startedAt = Date.now();
     const controller = new AbortController();
-    const timeoutMs = Number(options.timeoutMs || DEFAULT_PEER_PROBE_TIMEOUT_MS);
+    const timeoutMs = Number(options.timeoutMs || this.peerRequestTimeoutMs || DEFAULT_PEER_PROBE_TIMEOUT_MS);
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetch(`${peerUrl}/health`, {
+      const response = await fetch(`${normalizedPeerUrl}/health`, {
         signal: controller.signal
       });
       const health = await response.json();
 
       if (!response.ok) {
-        throw new Error(`Peer ${peerUrl} returned ${response.status} for /health.`);
+        throw new Error(`Peer ${normalizedPeerUrl} returned ${response.status} for /health.`);
       }
 
       if (health.chainId && health.chainId !== this.state.chainId) {
-        throw new Error(`Peer ${peerUrl} is on chain ${health.chainId}, expected ${this.state.chainId}.`);
+        throw new Error(`Peer ${normalizedPeerUrl} is on chain ${health.chainId}, expected ${this.state.chainId}.`);
       }
 
       if (health.network && health.network !== this.state.network) {
-        throw new Error(`Peer ${peerUrl} is on network ${health.network}, expected ${this.state.network}.`);
+        throw new Error(`Peer ${normalizedPeerUrl} is on network ${health.network}, expected ${this.state.network}.`);
       }
 
-      const peer = this.recordPeerSuccess(peerUrl, {
+      const peer = this.recordPeerSuccess(normalizedPeerUrl, {
         chainId: health.chainId || null,
         latencyMs: Date.now() - startedAt,
         network: health.network || null,
@@ -567,10 +789,10 @@ export class AfroChainNode {
         health,
         peer,
         status: 'reachable',
-        url: peerUrl
+        url: normalizedPeerUrl
       };
     } catch (error) {
-      const peer = this.recordPeerFailure(peerUrl, error, {
+      const peer = this.recordPeerFailure(normalizedPeerUrl, error, {
         latencyMs: Date.now() - startedAt,
         status: /expected/.test(error.message) ? 'incompatible' : 'failed'
       });
@@ -583,7 +805,7 @@ export class AfroChainNode {
         error: error.message,
         peer,
         status: peer.status,
-        url: peerUrl
+        url: normalizedPeerUrl
       };
     } finally {
       clearTimeout(timeoutId);
@@ -1659,9 +1881,15 @@ export class AfroChainNode {
       network: this.state.network,
       operatorApiProtected: Boolean(this.operatorToken),
       peerCount: this.peers.size,
+      peerDiscoveryLimit: this.peerDiscoveryLimit,
+      peerRequestRetries: this.peerRequestRetries,
+      peerRequestTimeoutMs: this.peerRequestTimeoutMs,
       peerRelayProtected: Boolean(this.peerToken),
       persistenceMode: this.database ? 'hybrid' : this.snapshotPath ? 'snapshot' : 'memory',
+      privatePeerAddressesAllowed: this.allowPrivatePeerAddresses,
       snapshotPath: this.snapshotPath,
+      snapshotRoots: this.allowedSnapshotRoots,
+      signedSnapshotsRequired: this.requireSignedSnapshots,
       socketUrl: this.nodeMetadata.socketUrl,
       targetBlockTimeMs: this.state.params.targetBlockTimeMs,
       tipHash: tip.hash,
@@ -2172,6 +2400,7 @@ export class AfroChainNode {
       currentHeight: nextHeight,
       debit: liveHelpers.debit
     });
+    this.state.metrics.totalBlocks += 1;
 
     const block = {
       height: nextHeight,
@@ -2184,7 +2413,6 @@ export class AfroChainNode {
 
     block.hash = this.hashBlock(block);
     this.chain.push(block);
-    this.state.metrics.totalBlocks += 1;
 
     await this.persistState();
 
@@ -2253,6 +2481,7 @@ export class AfroChainNode {
         currentHeight: block.height,
         debit: liveHelpers.debit
       });
+      this.state.metrics.totalBlocks += 1;
 
       const localStateRoot = this.buildStateRoot(this.state);
       if (localStateRoot !== block.stateRoot) {
@@ -2260,7 +2489,6 @@ export class AfroChainNode {
       }
 
       this.chain.push(block);
-      this.state.metrics.totalBlocks += 1;
       this.mempool = this.mempool.filter(
         (pendingTransaction) => !block.transactions.some((transaction) => transaction.id === pendingTransaction.id)
       );
@@ -2307,6 +2535,9 @@ export class AfroChainNode {
     return Promise.allSettled(
       peers.map(async (peer) => {
         const requestStartedAt = Date.now();
+        const controller = new AbortController();
+        const timeoutMs = Number(options.timeoutMs || this.peerRequestTimeoutMs || DEFAULT_PEER_REQUEST_TIMEOUT_MS);
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
           const response = await fetch(`${peer.url}${path}`, {
@@ -2319,7 +2550,8 @@ export class AfroChainNode {
                   }
                 : {})
             },
-            method: 'POST'
+            method: 'POST',
+            signal: controller.signal
           });
 
           if (!response.ok) {
@@ -2338,6 +2570,8 @@ export class AfroChainNode {
             latencyMs: Date.now() - requestStartedAt
           });
           throw error;
+        } finally {
+          clearTimeout(timeoutId);
         }
       })
     );

@@ -1,5 +1,5 @@
 import { isValidAddress } from './crypto.js';
-import { createId, sumRecord } from './utils.js';
+import { AFC_UNIT, createId, sumRecord } from './utils.js';
 import { getAccountStakedAmount, getTotalActiveStake } from './staking.js';
 
 const MUTABLE_PARAMETERS = new Set([
@@ -20,17 +20,121 @@ const MUTABLE_PARAMETERS = new Set([
 const TREASURY_SOURCE_TYPES = new Set(['treasury', 'inclusion_pool', 'settlement_pool']);
 const PROPOSAL_CATEGORIES = new Set(['protocol', 'treasury', 'informational']);
 const MAX_TREASURY_EVENTS = 50;
+const PARAMETER_SCHEMAS = {
+  baseFee: {
+    label: 'Base fee',
+    max: 100_000,
+    min: 0,
+    type: 'whole'
+  },
+  blockReward: {
+    label: 'Block reward',
+    max: 1_000_000 * AFC_UNIT,
+    min: 0,
+    type: 'token'
+  },
+  contractDeploymentBond: {
+    label: 'Contract deployment bond',
+    max: 5_000_000 * AFC_UNIT,
+    min: 0,
+    type: 'token'
+  },
+  contractGasPrice: {
+    label: 'Contract gas price',
+    max: 10_000,
+    min: 0,
+    type: 'whole'
+  },
+  defaultContractGasLimit: {
+    label: 'Default contract gas limit',
+    max: 500_000,
+    min: 1_000,
+    type: 'whole'
+  },
+  finalityDepth: {
+    label: 'Finality depth',
+    max: 256,
+    min: 1,
+    type: 'whole'
+  },
+  governanceVotingWindow: {
+    label: 'Governance voting window',
+    max: 10_000,
+    min: 1,
+    type: 'whole'
+  },
+  maxTransactionsPerBlock: {
+    label: 'Max transactions per block',
+    max: 1_000,
+    min: 1,
+    type: 'whole'
+  },
+  minValidatorStake: {
+    label: 'Minimum validator stake',
+    max: 100_000_000 * AFC_UNIT,
+    min: 1_000 * AFC_UNIT,
+    type: 'token'
+  },
+  proposalDeposit: {
+    label: 'Proposal deposit',
+    max: 1_000_000 * AFC_UNIT,
+    min: 0,
+    type: 'token'
+  },
+  quorumRate: {
+    label: 'Quorum rate',
+    max: 1,
+    min: 0,
+    type: 'decimal'
+  },
+  targetBlockTimeMs: {
+    label: 'Target block time',
+    max: 300_000,
+    min: 1_000,
+    type: 'whole'
+  },
+  unbondingPeriodBlocks: {
+    label: 'Unbonding period',
+    max: 100_000,
+    min: 1,
+    type: 'whole'
+  }
+};
+
+function normalizeProtocolParameterChange(change = {}) {
+  if (!change.parameter || !MUTABLE_PARAMETERS.has(change.parameter)) {
+    throw new Error(`Unsupported governance parameter: ${change.parameter || 'unknown'}.`);
+  }
+
+  const schema = PARAMETER_SCHEMAS[change.parameter];
+  const rawValue = Number(change.value);
+
+  if (!Number.isFinite(rawValue)) {
+    throw new Error(`${schema.label} must be a finite number.`);
+  }
+
+  if ((schema.type === 'whole' || schema.type === 'token') && !Number.isInteger(rawValue)) {
+    throw new Error(`${schema.label} must be expressed as a whole number.`);
+  }
+
+  if (rawValue < schema.min || rawValue > schema.max) {
+    throw new Error(`${schema.label} must be between ${schema.min} and ${schema.max}.`);
+  }
+
+  return {
+    parameter: change.parameter,
+    value: rawValue
+  };
+}
 
 function applyProposalChanges(state, changes = []) {
   const applied = [];
 
   for (const change of changes) {
-    if (!MUTABLE_PARAMETERS.has(change.parameter)) {
-      continue;
-    }
+    const normalizedChange = normalizeProtocolParameterChange(change);
 
-    state.params[change.parameter] = change.value;
-    applied.push(change);
+    state.params[normalizedChange.parameter] = normalizedChange.value;
+    applied.push(normalizedChange);
   }
 
   return applied;
@@ -105,7 +209,7 @@ function normalizeGrants(state, grants = []) {
 
 function validateProposalPayload(state, payload) {
   const category = payload.category || 'protocol';
-  const changes = payload.changes || [];
+  const changes = (payload.changes || []).map((change) => normalizeProtocolParameterChange(change));
   const grants = normalizeGrants(state, payload.grants || []);
   const vestingGrantCount = grants.filter((grant) => grant.vestingBlocks > 0).length;
   const vestedGrantVolume = grants.reduce(
@@ -113,9 +217,16 @@ function validateProposalPayload(state, payload) {
     0
   );
   const grantVolume = grants.reduce((total, grant) => total + grant.amount, 0);
+  const duplicateParameters = changes
+    .map((change) => change.parameter)
+    .filter((parameter, index, parameters) => parameters.indexOf(parameter) !== index);
 
   if (!PROPOSAL_CATEGORIES.has(category)) {
     throw new Error(`Unsupported proposal category: ${category}`);
+  }
+
+  if (duplicateParameters.length) {
+    throw new Error(`Protocol proposals cannot include duplicate parameter changes: ${duplicateParameters.join(', ')}.`);
   }
 
   if (category === 'treasury' && !grants.length) {

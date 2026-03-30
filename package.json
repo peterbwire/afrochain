@@ -15,6 +15,8 @@
     "check:split": "node scripts/check-split-readiness.js",
     "dev:node": "node packages/protocol/src/bin/start-node.js",
     "dev:validator": "node packages/protocol/src/bin/start-validator.js",
+    "docker:down": "docker compose down",
+    "docker:up": "docker compose up --build",
     "snapshot:export": "node packages/protocol/src/bin/export-snapshot.js",
     "split:export": "node scripts/split-repo.js export",
     "split:list": "node scripts/split-repo.js list",
