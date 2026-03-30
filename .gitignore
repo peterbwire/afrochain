@@ -1,0 +1,12 @@
+node_modules
+dist
+.DS_Store
+.vite
+coverage
+*.log
+.env
+.expo-home
+.expo-cache
+.split-preview
+apps/*/node_modules
+packages/*/node_modules

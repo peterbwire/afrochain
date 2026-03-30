@@ -1,0 +1,14 @@
+{
+  "name": "@afrochain/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "src"
+  ],
+  "bin": {
+    "afrochain-cli": "src/main.js"
+  },
+  "dependencies": {
+    "@afrochain/sdk": "0.1.0"
+  }
+}

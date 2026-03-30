@@ -1,0 +1,13 @@
+{
+  "name": "@afrochain/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "main": "src/index.js",
+  "description": "Developer SDK for wallets, dApps, and tooling on AfroChain."
+}

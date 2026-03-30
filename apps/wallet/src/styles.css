@@ -1,0 +1,291 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root {
+  color: #fff7eb;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(242, 196, 125, 0.28), transparent 30%),
+    radial-gradient(circle at top right, rgba(25, 128, 111, 0.2), transparent 35%),
+    linear-gradient(160deg, #20110d 0%, #3e2212 45%, #112523 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.wallet-shell {
+  display: grid;
+  gap: 1.25rem;
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 1.2rem;
+}
+
+.hero-card,
+.panel {
+  backdrop-filter: blur(18px);
+  background: rgba(16, 12, 9, 0.66);
+  border: 1px solid rgba(255, 240, 216, 0.12);
+  border-radius: 28px;
+  box-shadow: 0 24px 60px rgba(6, 5, 5, 0.28);
+}
+
+.hero-card {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.5rem;
+}
+
+.hero-actions {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.panel {
+  padding: 1.3rem;
+}
+
+.panel-header {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  color: #f4c56e;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+strong {
+  font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2.1rem, 6vw, 3.9rem);
+  line-height: 0.95;
+  max-width: 12ch;
+}
+
+.lede {
+  color: rgba(255, 247, 235, 0.78);
+  margin-top: 0.9rem;
+  max-width: 58ch;
+}
+
+.status-pill,
+.address-chip {
+  background: rgba(244, 197, 110, 0.12);
+  border: 1px solid rgba(244, 197, 110, 0.28);
+  border-radius: 999px;
+  color: #f7d99c;
+  display: inline-flex;
+  padding: 0.45rem 0.8rem;
+}
+
+.address-chip {
+  margin-top: 1rem;
+  overflow: auto;
+}
+
+.primary-button,
+.secondary-button,
+.vote-strip button {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  padding: 0.9rem 1.15rem;
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+
+.primary-button,
+.vote-strip button:first-child {
+  background: linear-gradient(120deg, #f2c47a 0%, #ef8d3b 100%);
+  color: #2d1204;
+  font-weight: 700;
+}
+
+.secondary-button,
+.vote-strip button {
+  background: rgba(255, 247, 235, 0.1);
+  color: #fff7eb;
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.vote-strip button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.vote-strip button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+
+.account-grid,
+.content-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.account-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: 1rem;
+}
+
+.account-grid.compact {
+  margin-top: 0.8rem;
+}
+
+.metric-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 22px;
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+}
+
+.metric-card span {
+  color: rgba(255, 247, 235, 0.72);
+  font-size: 0.9rem;
+}
+
+.metric-card strong {
+  font-size: 1.45rem;
+}
+
+.highlight {
+  background: linear-gradient(135deg, rgba(31, 133, 111, 0.42), rgba(242, 196, 122, 0.18));
+}
+
+.content-grid {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.stack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+label {
+  color: rgba(255, 247, 235, 0.78);
+  display: grid;
+  gap: 0.45rem;
+}
+
+input,
+select,
+textarea {
+  background: rgba(255, 247, 235, 0.07);
+  border: 1px solid rgba(255, 247, 235, 0.12);
+  border-radius: 18px;
+  color: #fff7eb;
+  padding: 0.9rem 1rem;
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.two-column {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.list-card,
+.proposal-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 247, 235, 0.08);
+  border-radius: 24px;
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.list-card {
+  align-items: center;
+  grid-template-columns: 1fr auto;
+}
+
+.list-card p,
+.proposal-card p {
+  color: rgba(255, 247, 235, 0.74);
+}
+
+.nested-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-style: dashed;
+}
+
+.proposal-meta,
+.vote-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.proposal-meta span {
+  background: rgba(31, 133, 111, 0.22);
+  border-radius: 999px;
+  color: #9ce5d4;
+  padding: 0.35rem 0.65rem;
+}
+
+.empty-state {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 720px) {
+  .hero-card,
+  .panel-header,
+  .list-card {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .hero-card {
+    padding: 1.2rem;
+  }
+
+  .two-column {
+    grid-template-columns: 1fr;
+  }
+}

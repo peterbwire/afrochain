@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "AfroChain Mobile Wallet",
+    "slug": "afrochain-mobile-wallet",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#f5efe1"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow AfroChain Mobile Wallet to use Face ID for secure wallet unlock."
+        }
+      ]
+    ]
+  }
+}

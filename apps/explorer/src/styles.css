@@ -1,0 +1,222 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root {
+  color: #f5f9ef;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(254, 211, 92, 0.16), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(26, 133, 115, 0.2), transparent 34%),
+    linear-gradient(160deg, #081c18 0%, #0f3129 45%, #1d1710 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.explorer-shell {
+  display: grid;
+  gap: 1.2rem;
+  margin: 0 auto;
+  max-width: 1220px;
+  padding: 1.2rem;
+}
+
+.masthead,
+.panel,
+.metric-card {
+  backdrop-filter: blur(20px);
+  background: rgba(7, 18, 16, 0.72);
+  border: 1px solid rgba(245, 249, 239, 0.09);
+  border-radius: 28px;
+  box-shadow: 0 24px 55px rgba(3, 8, 7, 0.24);
+}
+
+.masthead,
+.section-header,
+.list-card,
+.validator-card,
+.proposal-card {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.masthead {
+  align-items: start;
+  padding: 1.5rem;
+}
+
+.panel {
+  padding: 1.2rem;
+}
+
+.eyebrow {
+  color: #ffe07b;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+strong {
+  font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 0.95;
+  max-width: 14ch;
+}
+
+.status-pill {
+  background: rgba(255, 224, 123, 0.12);
+  border: 1px solid rgba(255, 224, 123, 0.24);
+  border-radius: 999px;
+  color: #ffe07b;
+  padding: 0.5rem 0.8rem;
+}
+
+.metric-grid,
+.content-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.metric-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem;
+}
+
+.metric-card span {
+  color: rgba(245, 249, 239, 0.74);
+}
+
+.metric-card strong {
+  font-size: 1.5rem;
+}
+
+.highlight {
+  background: linear-gradient(135deg, rgba(255, 224, 123, 0.14), rgba(26, 133, 115, 0.32));
+}
+
+.content-grid {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.stack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+label {
+  color: rgba(245, 249, 239, 0.76);
+  display: grid;
+  gap: 0.45rem;
+}
+
+input {
+  background: rgba(245, 249, 239, 0.06);
+  border: 1px solid rgba(245, 249, 239, 0.12);
+  border-radius: 18px;
+  color: #f5f9ef;
+  padding: 0.9rem 1rem;
+}
+
+.primary-button {
+  background: linear-gradient(120deg, #ffe07b 0%, #1a8573 100%);
+  border: 0;
+  border-radius: 999px;
+  color: #08231e;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.9rem 1rem;
+}
+
+.list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.list-card,
+.validator-card,
+.proposal-card,
+.account-card,
+.corridor-card {
+  background: rgba(245, 249, 239, 0.04);
+  border: 1px solid rgba(245, 249, 239, 0.07);
+  border-radius: 24px;
+  padding: 1rem;
+}
+
+.validator-card,
+.proposal-card,
+.account-card,
+.corridor-card {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.list-card p,
+.validator-card p,
+.proposal-card p,
+.corridor-card p,
+.account-card p {
+  color: rgba(245, 249, 239, 0.72);
+}
+
+.corridor-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.corridor-topline {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.corridor-bar {
+  background: rgba(245, 249, 239, 0.08);
+  border-radius: 999px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.corridor-bar div {
+  background: linear-gradient(90deg, #ffe07b 0%, #1a8573 100%);
+  height: 100%;
+}
+
+@media (max-width: 760px) {
+  .masthead,
+  .section-header,
+  .list-card {
+    display: grid;
+  }
+}

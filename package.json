@@ -1,0 +1,29 @@
+{
+  "name": "afrochain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AfroChain is a Proof-of-Stake Layer 1 blockchain focused on low fees, mobile users, and African financial inclusion.",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "contracts/*"
+  ],
+  "scripts": {
+    "cli": "node packages/cli/src/main.js",
+    "check:boundaries": "node scripts/check-boundaries.js",
+    "check:split": "node scripts/check-split-readiness.js",
+    "dev:node": "node packages/protocol/src/bin/start-node.js",
+    "dev:validator": "node packages/protocol/src/bin/start-validator.js",
+    "snapshot:export": "node packages/protocol/src/bin/export-snapshot.js",
+    "split:export": "node scripts/split-repo.js export",
+    "split:list": "node scripts/split-repo.js list",
+    "split:show": "node scripts/split-repo.js show",
+    "test:sdk": "node packages/sdk/src/tests/keystore.test.js",
+    "test:protocol": "node packages/protocol/src/tests/core.test.js",
+    "dev:wallet": "npm run dev --workspace @afrochain/wallet",
+    "dev:mobile-wallet": "npm run start --workspace @afrochain/mobile-wallet",
+    "dev:explorer": "npm run dev --workspace @afrochain/explorer",
+    "dev:dashboard": "npm run dev --workspace @afrochain/dashboard"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "organization": "AfroChain",
+  "strategy": "monorepo-now-split-later",
+  "currentPrimaryRepo": "afrochain-protocol",
+  "repositories": {
+    "afrochain-protocol": {
+      "status": "active",
+      "paths": [
+        "packages/protocol"
+      ],
+      "futureSplitTargets": [
+        "afrochain-core",
+        "afrochain-consensus",
+        "afrochain-vm",
+        "afrochain-governance"
+      ]
+    },
+    "afrocoin-token": {
+      "status": "extractable",
+      "paths": [
+        "contracts/afrocoin"
+      ]
+    },
+    "afrochain-sdk": {
+      "status": "extractable",
+      "paths": [
+        "packages/sdk",
+        "packages/cli"
+      ]
+    },
+    "afrochain-wallet": {
+      "status": "extractable",
+      "paths": [
+        "apps/wallet",
+        "apps/mobile-wallet"
+      ]
+    },
+    "afrochain-explorer": {
+      "status": "extractable",
+      "paths": [
+        "apps/explorer"
+      ]
+    },
+    "afrochain-dashboard": {
+      "status": "extractable",
+      "paths": [
+        "apps/dashboard"
+      ]
+    },
+    "afrochain-docs": {
+      "status": "extractable",
+      "paths": [
+        "README.md",
+        "docs"
+      ]
+    },
+    "afrochain-improvement-proposals": {
+      "status": "extractable",
+      "paths": [
+        "acps"
+      ]
+    }
+  },
+  "phases": [
+    {
+      "name": "phase-1-foundation",
+      "repositories": [
+        "afrochain-docs",
+        "afrochain-improvement-proposals",
+        "afrocoin-token",
+        "afrochain-sdk",
+        "afrochain-wallet",
+        "afrochain-explorer",
+        "afrochain-dashboard"
+      ]
+    },
+    {
+      "name": "phase-2-protocol-split",
+      "repositories": [
+        "afrochain-core",
+        "afrochain-consensus",
+        "afrochain-vm",
+        "afrochain-governance"
+      ]
+    }
+  ]
+}

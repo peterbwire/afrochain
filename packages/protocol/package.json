@@ -1,0 +1,13 @@
+{
+  "name": "@afrochain/protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "main": "src/index.js",
+  "description": "Core AfroChain Proof-of-Stake protocol, validator engine, contracts, and node API."
+}
